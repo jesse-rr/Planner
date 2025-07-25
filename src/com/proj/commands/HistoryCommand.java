@@ -42,12 +42,12 @@ public class HistoryCommand implements Command {
 
     @Override
     public String getName() {
-        return "history";
+        return "log";
     }
 
     @Override
     public String[] getAliases() {
-        return new String[]{"hist", "log"};
+        return new String[]{"hist"};
     }
 
     @Override
@@ -58,9 +58,9 @@ public class HistoryCommand implements Command {
     @Override
     public String getUsage() {
         return "Usage:\n"
-             + "  plan history - show all history\n"
-             + "  plan history <type> - show history for type (project/section/task)\n"
-             + "  plan history <type> <name> - show history for specific item\n"
-             + "Aliases: hist, log";
+             + "  plan log - show all history\n"
+             + "  plan log <type> - show history for type (project/section/task)\n"
+             + "  plan log <type> <name> - show history for specific item\n"
+             + "Aliases: hist";
     }
 }

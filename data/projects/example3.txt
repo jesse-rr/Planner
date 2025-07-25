@@ -1,0 +1,6 @@
+=== PROJECT DETAILS ===
+Name: example3
+Objective: null
+Date: null
+Completed: false
+Priority: Undefined

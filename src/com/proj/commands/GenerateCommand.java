@@ -1,7 +1,14 @@
 package com.proj.commands;
 
+import com.proj.models.HistoryEntry;
+import com.proj.models.Project;
+import com.proj.models.Section;
+import com.proj.models.Task;
 import com.proj.util.Command;
 import com.proj.util.PlannerManager;
+import com.proj.util.SaveManager;
+
+import java.util.Arrays;
 
 public class GenerateCommand implements Command {
     private PlannerManager manager;
@@ -13,14 +20,65 @@ public class GenerateCommand implements Command {
     @Override
     public void execute(String[] args) {
         if (args.length < 2) {
-            System.out.println("Usage: plan g s <section-name>");
+            System.out.println(getUsage());
             return;
         }
-        
-        if (args[0].equalsIgnoreCase("s")) {
-            manager.getCurrentProject().addSection(args[1]);
-            System.out.println("Added section: " + args[1]);
+
+        Project currentProject = manager.getCurrentProject();
+        if (currentProject == null) {
+            System.out.println("No project selected");
+            return;
         }
+
+        String type = args[0].toLowerCase();
+        String name = args[1];
+
+        if (type.equals("s")) {
+            if (currentProject.getSection(name) != null) {
+                System.out.println("Section already exists: " + name);
+                return;
+            }
+
+            Section section = new Section(name);
+            currentProject.getSections().add(section);
+
+            manager.addHistoryEntry(new HistoryEntry(
+                    "SECTION_CREATE",
+                    "section",
+                    name,
+                    "",
+                    section.toString()
+            ));
+
+            System.out.println("Added section: " + name);
+        } else if (type.equals("t") && args.length >= 3) {
+            String sectionName = args[1];
+            String taskDesc = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+            Section section = currentProject.getSection(sectionName);
+
+            if (section == null) {
+                System.out.println("Section not found: " + sectionName);
+                return;
+            }
+
+            Task task = new Task(taskDesc);
+            section.getTasks().add(task);
+
+            manager.addHistoryEntry(new HistoryEntry(
+                    "TASK_CREATE",
+                    "task",
+                    sectionName + ":" + taskDesc,
+                    "",
+                    task.toString()
+            ));
+
+            System.out.println("Added task to section '" + sectionName + "': " + taskDesc);
+        } else {
+            System.out.println(getUsage());
+            return;
+        }
+
+        SaveManager.saveAll(manager);
     }
 
     @Override

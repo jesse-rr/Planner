@@ -16,26 +16,7 @@ public class Main {
         SaveManager.loadAll(manager);
 
         // Initialize commands
-        Command[] allCommands = {
-                new CreateCommand(manager),
-                new GenerateCommand(manager),
-                new ChangeCommand(manager),
-                new ShowCommand(manager),
-                new ListCommand(manager),
-                new FindCommand(manager),
-                new HistoryCommand(manager),
-                new UndoCommand(manager),
-                new PriorityCommand(manager),
-                new HelpCommand(commands.values()),
-                new DeleteCommand(manager)
-        };
-
-        for (Command cmd : allCommands) {
-            commands.put(cmd.getName(), cmd);
-            for (String alias : cmd.getAliases()) {
-                commands.put(alias, cmd);
-            }
-        }
+        initializeCommands();
 
         Scanner scanner = new Scanner(System.in);
         System.out.println("Project Planner CLI - Type 'help' for commands");
@@ -59,6 +40,40 @@ public class Main {
         scanner.close();
     }
 
+    private static void initializeCommands() {
+        Command[] allCommands = {
+                new CreateCommand(manager),
+                new GenerateCommand(manager),
+                new ChangeCommand(manager),
+                new ShowCommand(manager),
+                new ListCommand(manager),
+                new FindCommand(manager),
+                new HistoryCommand(manager),
+                new UndoCommand(manager),
+                new PriorityCommand(manager),
+                new DeleteCommand(manager),
+                new HelpCommand(Arrays.asList( // Initialize HelpCommand with all commands
+                        new CreateCommand(manager),
+                        new GenerateCommand(manager),
+                        new ChangeCommand(manager),
+                        new ShowCommand(manager),
+                        new ListCommand(manager),
+                        new FindCommand(manager),
+                        new HistoryCommand(manager),
+                        new UndoCommand(manager),
+                        new PriorityCommand(manager),
+                        new DeleteCommand(manager)
+                ))
+        };
+
+        for (Command cmd : allCommands) {
+            commands.put(cmd.getName().toLowerCase(), cmd);
+            for (String alias : cmd.getAliases()) {
+                commands.put(alias.toLowerCase(), cmd);
+            }
+        }
+    }
+
     private static void processCommand(String input) {
         if (input.isEmpty()) return;
 
@@ -67,28 +82,11 @@ public class Main {
         String[] commandArgs = Arrays.copyOfRange(parts, 1, parts.length);
 
         Command cmd = commands.get(commandKey);
-        if (cmd == null) {
-            cmd = findCommandByAlias(commandKey);
-            if (cmd == null) {
-                System.out.println("Unknown command: " + commandKey);
-                System.out.println("Type 'help' for available commands");
-            } else {
-                cmd.execute(commandArgs);
-            }
+        if (cmd != null) {
+            cmd.execute(commandArgs);
+        } else {
+            System.out.println("Unknown command: " + commandKey);
+            System.out.println("Type 'help' for available commands");
         }
-    }
-
-    private static Command findCommandByAlias(String commandKey) {
-        for (Command cmd : commands.values()) {
-            if (cmd.getName().equalsIgnoreCase(commandKey)) {
-                return cmd;
-            }
-            for (String alias : cmd.getAliases()) {
-                if (alias.startsWith(commandKey)) {
-                    return cmd;
-                }
-            }
-        }
-        return null;
     }
 }

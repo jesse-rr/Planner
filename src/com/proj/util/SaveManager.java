@@ -2,6 +2,8 @@ package com.proj.util;
 
 import com.proj.models.Project;
 import com.proj.models.HistoryEntry;
+import com.proj.models.Section;
+import com.proj.models.Priority;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -12,74 +14,142 @@ import java.util.Map;
 import java.util.Scanner;
 
 public class SaveManager {
-    private static final String CONFIG_DIR = ".project-planner";
-    private static final String SAVE_FILE = "projects.dat";
-    private static Path savePath;
+    private static final String DATA_DIR = "data";
+    private static final String PROJECTS_DIR = "projects";
+    private static final String CONFIG_FILE = "config.txt";
+    private static final String PROJECTS_FILE = "projects.dat";
+    private static final String HISTORY_FILE = "history.dat";
+    private static Path dataPath;
+    private static Path projectsPath;
 
     static {
-        // Try to find existing save location
-        Path rootPath = Paths.get(System.getProperty("user.home"), CONFIG_DIR);
-        if (Files.exists(rootPath)) {
-            savePath = rootPath.resolve(SAVE_FILE);
-        } else {
-            // Default to current directory if no config exists
-            savePath = Paths.get(SAVE_FILE);
+        dataPath = Paths.get(DATA_DIR);
+        projectsPath = dataPath.resolve(PROJECTS_DIR);
+        try {
+            if (!Files.exists(dataPath)) {
+                Files.createDirectories(dataPath);
+            }
+            if (!Files.exists(projectsPath)) {
+                Files.createDirectories(projectsPath);
+            }
+        } catch (IOException e) {
+            System.err.println("Error creating data directories: " + e.getMessage());
+            dataPath = Paths.get(".");
+            projectsPath = dataPath;
         }
     }
 
     public static void saveAll(PlannerManager manager) {
-        Scanner scanner = new Scanner(System.in);
+        saveToFile(PROJECTS_FILE, manager.getProjects());
+        saveProjectsToTextFiles(manager.getProjects());
+        saveToFile(HISTORY_FILE, manager.getHistory());
+        saveConfig(manager.getCurrentProject() != null ?
+                manager.getCurrentProject().getName() : null);
+        System.out.println("Data saved to: " + dataPath.toAbsolutePath());
+    }
 
-        // If no existing save location, prompt user
-        if (!Files.exists(savePath.getParent())) {
-            System.out.print("No save location found. Enter directory path (blank for current dir): ");
-            String userPath = scanner.nextLine().trim();
-
-            if (!userPath.isEmpty()) {
-                savePath = Paths.get(userPath, CONFIG_DIR, SAVE_FILE);
-            } else {
-                savePath = Paths.get(CONFIG_DIR, SAVE_FILE);
-            }
-
-            try {
-                Files.createDirectories(savePath.getParent());
-            } catch (IOException e) {
-                System.out.println("Error creating save directory: " + e.getMessage());
-                return;
-            }
+    private static void saveProjectsToTextFiles(Map<String, Project> projects) {
+        for (Map.Entry<String, Project> entry : projects.entrySet()) {
+            saveProjectToTextFile(entry.getValue());
         }
+    }
 
-        try (ObjectOutputStream oos = new ObjectOutputStream(
-                new FileOutputStream(savePath.toFile()))) {
+    private static void saveProjectToTextFile(Project project) {
+        Path projectFilePath = projectsPath.resolve(project.getName() + ".txt");
+        try (PrintWriter writer = new PrintWriter(projectFilePath.toFile())) {
+            writer.println("=== PROJECT DETAILS ===");
+            writer.println("Name: " + project.getName());
+            writer.println("Objective: " + project.getObjective());
+            writer.println("Date: " + project.getDate());
+            writer.println("Completed: " + project.isCompleted());
+            writer.println("Priority: " + project.getPriority());
 
-            oos.writeObject(manager.getProjects());
-            oos.writeObject(manager.getHistory());
-            System.out.println("Saved data to: " + savePath);
-
+            if (!project.getSections().isEmpty()) {
+                writer.println("\n=== SECTIONS ===");
+                for (Section section : project.getSections()) {
+                    writer.println("\nSection: " + section.getName());
+                    // Add section details here if your Section class has more fields
+                }
+            }
         } catch (IOException e) {
-            System.out.println("Error saving data: " + e.getMessage());
+            System.out.println("Error saving project text file for " +
+                    project.getName() + ": " + e.getMessage());
+        }
+    }
+
+    private static void saveConfig(String currentProjectName) {
+        Path configPath = dataPath.resolve(CONFIG_FILE);
+        try (PrintWriter writer = new PrintWriter(configPath.toFile())) {
+            if (currentProjectName != null) {
+                writer.println("current_project=" + currentProjectName);
+            }
+        } catch (IOException e) {
+            System.out.println("Error saving config: " + e.getMessage());
+        }
+    }
+
+    private static <T> void saveToFile(String filename, T data) {
+        Path filePath = dataPath.resolve(filename);
+        try (ObjectOutputStream oos = new ObjectOutputStream(
+                new FileOutputStream(filePath.toFile()))) {
+            oos.writeObject(data);
+        } catch (IOException e) {
+            System.out.println("Error saving " + filename + ": " + e.getMessage());
         }
     }
 
     @SuppressWarnings("unchecked")
     public static void loadAll(PlannerManager manager) {
-        if (!Files.exists(savePath)) {
-            System.out.println("No save file found at: " + savePath);
-            return;
+        Map<String, Project> projects = (Map<String, Project>) loadFromFile(PROJECTS_FILE);
+        if (projects != null) {
+            manager.getProjects().putAll(projects);
+        }
+
+        List<HistoryEntry> history = (List<HistoryEntry>) loadFromFile(HISTORY_FILE);
+        if (history != null) {
+            manager.getHistory().addAll(history);
+        }
+
+        String currentProject = loadConfig();
+        if (currentProject != null && projects != null &&
+                projects.containsKey(currentProject.toLowerCase())) {
+            manager.setCurrentProject(currentProject);
+        }
+
+        System.out.println("Data loaded from: " + dataPath.toAbsolutePath());
+    }
+
+    private static String loadConfig() {
+        Path configPath = dataPath.resolve(CONFIG_FILE);
+        if (!Files.exists(configPath)) {
+            return null;
+        }
+
+        try (Scanner scanner = new Scanner(configPath)) {
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                if (line.startsWith("current_project=")) {
+                    return line.substring("current_project=".length());
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Error loading config: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private static Object loadFromFile(String filename) {
+        Path filePath = dataPath.resolve(filename);
+        if (!Files.exists(filePath)) {
+            return null;
         }
 
         try (ObjectInputStream ois = new ObjectInputStream(
-                new FileInputStream(savePath.toFile()))) {
-
-            Map<String, Project> projects = (Map<String, Project>) ois.readObject();
-            List<HistoryEntry> history = (List<HistoryEntry>) ois.readObject();
-
-            manager.getProjects().putAll(projects);
-            manager.getHistory().addAll(history);
-            System.out.println("Loaded data from: " + savePath);
-
+                new FileInputStream(filePath.toFile()))) {
+            return ois.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            System.out.println("Error loading data: " + e.getMessage());
+            System.out.println("Error loading " + filename + ": " + e.getMessage());
+            return null;
         }
     }
 }
